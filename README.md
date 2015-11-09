@@ -15,14 +15,14 @@ Getting Started
 	$ cd lucene-search-parallelism/lucene-parallelism-core
 	$ mvn clean package appassembler:assemble
 	```
-3. Build index on the entire collection.
+3. Build index on the entire collection:
 
 	```
 	$ sh target/appassembler/bin/IndexStatuses -collection {collectionPath} \
 	  -index {indexPath} -optimize
 	```
 
-4. Divide the collection into equal size and build index on each of them.
+4. Divide the collection into equal size and build index on each of them:
 
 	```
 	$ sh target/appassembler/bin/PartitionIndex -collection {collectionPath} \
