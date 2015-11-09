@@ -18,20 +18,24 @@ Getting Started
 3. Build index on the entire collection.
 
 	```
-	$ sh target/appassembler/bin/IndexStatuses -collection {collectionPath} -index {indexPath} -optimize
+	$ sh target/appassembler/bin/IndexStatuses -collection {collectionPath} \
+	  -index {indexPath} -optimize
 	```
 
 4. Divide the collection into equal size and build index on each of them.
 
 	```
-	$ sh target/appassembler/bin/PartitionIndex -collection {collectionPath} -index {partitionedIndexPath} -parts {# of partitions}
+	$ sh target/appassembler/bin/PartitionIndex -collection {collectionPath} \
+	  -index {partitionedIndexPath} -parts {# of partitions} -optimize
 	```
 5. Run Lucene search with inter parallelism:
 	```
-	$ sh target/appassembler/bin/RunQueriesInterQuery -index {indexPath} -queries {queryPath} -threads {# of threads}
+	$ sh target/appassembler/bin/RunQueriesInterQuery -index {indexPath} \
+	  -queries {queryPath} -threads {# of threads}
 	```
 
 6. Run Lucene search with intra parallelism:
 	```
-	$ sh target/appassembler/bin/RunQueriesIntraQuery -index {partitionedIndexPath} -queries {queryPath} -threads {# of threads}
+	$ sh target/appassembler/bin/RunQueriesIntraQuery -index {partitionedIndexPath} \
+	  -queries {queryPath} -threads {# of threads}
 	```
