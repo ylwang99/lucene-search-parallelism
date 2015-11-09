@@ -1,4 +1,4 @@
-Lucene Search with Parallism
+Lucene Search with Parallelism
 =============
 This is a tool to perform Lucene search with inter/intra parallelism implementations.
 
