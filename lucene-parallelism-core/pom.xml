@@ -51,8 +51,8 @@
               </jvmSettings>
             </program>
             <program>
-              <mainClass>lucene_parallelism.lucene_parallelism_core.search.RunQueriesIntreQuery</mainClass>
-              <name>RunQueriesIntreQuery</name>
+              <mainClass>lucene_parallelism.lucene_parallelism_core.search.RunQueriesInterQuery</mainClass>
+              <name>RunQueriesInterQuery</name>
               <jvmSettings>
                 <maxMemorySize>128g</maxMemorySize>
               </jvmSettings>
