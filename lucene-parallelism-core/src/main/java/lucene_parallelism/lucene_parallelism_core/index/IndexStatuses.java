@@ -1,5 +1,5 @@
 /* Build index on collection
- * Usage: sh target/appassembler/bin/IndexStatuses -collection [] -index [] 
+ * Usage: sh target/appassembler/bin/IndexStatuses -collection [] -index [] -optimize
  */
 
 package lucene_parallelism.lucene_parallelism_core.index;

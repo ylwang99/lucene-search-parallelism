@@ -5,11 +5,6 @@ package lucene_parallelism.lucene_parallelism_core.search;
 
 import java.io.File;
 import java.io.PrintStream;
-import java.io.IOException;
-import java.util.List;
-import java.io.StringReader;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -19,6 +14,7 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -32,12 +28,6 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.Document;
-
-import com.google.common.collect.Lists;
 
 import cc.twittertools.index.IndexStatuses;
 import cc.twittertools.index.IndexStatuses.StatusField;
@@ -62,10 +52,10 @@ public class RunQueries {
 
 	    options.addOption(OptionBuilder.withArgName("path").hasArg()
 	        .withDescription("index location").create(INDEX_OPTION));
-	    options.addOption(OptionBuilder.withArgName("num").hasArg()
-	        .withDescription("number of results to return").create(NUM_RESULTS_OPTION));
 	    options.addOption(OptionBuilder.withArgName("file").hasArg()
 	        .withDescription("file containing topics in TREC format").create(QUERIES_OPTION));
+	    options.addOption(OptionBuilder.withArgName("num").hasArg()
+	        .withDescription("number of results to return").create(NUM_RESULTS_OPTION));
 	    options.addOption(OptionBuilder.withArgName("similarity").hasArg()
 	        .withDescription("similarity to use (BM25, LM)").create(SIMILARITY_OPTION));
 	    options.addOption(OptionBuilder.withArgName("string").hasArg()
@@ -81,7 +71,7 @@ public class RunQueries {
 	      System.exit(-1);
 	    }
 
-	    if (!cmdline.hasOption(QUERIES_OPTION) || !cmdline.hasOption(INDEX_OPTION)) {
+	    if (!cmdline.hasOption(INDEX_OPTION) || !cmdline.hasOption(QUERIES_OPTION)) {
 	      HelpFormatter formatter = new HelpFormatter();
 	      formatter.printHelp(RunQueries.class.getName(), options);
 	      System.exit(-1);
@@ -93,8 +83,7 @@ public class RunQueries {
 	      System.exit(-1);
 	    }
 
-	    String runtag = cmdline.hasOption(RUNTAG_OPTION) ?
-	        cmdline.getOptionValue(RUNTAG_OPTION) : DEFAULT_RUNTAG;
+	    String runtag = cmdline.hasOption(RUNTAG_OPTION) ? cmdline.getOptionValue(RUNTAG_OPTION) : DEFAULT_RUNTAG;
 
 	    String topicsFile = cmdline.getOptionValue(QUERIES_OPTION);
 
@@ -125,43 +114,60 @@ public class RunQueries {
 	    } else if (similarity.equalsIgnoreCase("LM")) {
 	    	searcher.setSimilarity(new LMDirichletSimilarity(2500.0f));
 	    }
-		
-		int N = 4;
-		int total = 0;
-		int totalTopicCount = 0;
-		QueryParser p = new QueryParser(Version.LUCENE_43, StatusField.TEXT.name, IndexStatuses.ANALYZER);
 
+	    QueryParser p = new QueryParser(Version.LUCENE_43, StatusField.TEXT.name, IndexStatuses.ANALYZER);
 		TrecTopicSet topics = TrecTopicSet.fromFile(new File(topicsFile));
+
+		int N = 4;
+		double totalTime = 0;
+		int queryCount = 0;
+		int topicIdx = 0;
+		// for (TrecTopic topic : topics) {
+		// 	topicIdx ++;
+		// }
+		// Query[] query = new Query[topicIdx];
+		// Filter[] filter = new Filter[topicIdx];
+		// topicIdx = 0;
+		// for (TrecTopic topic : topics) {
+			// query[topicIdx] = p.parse(topic.getQuery());
+			// filter[topicIdx] = NumericRangeFilter.newLongRange(StatusField.ID.name, 0L, topic.getQueryTweetTime(), true, true);
+			// topicIdx ++;
+		// }
 		for (int count = 1; count <= N; count ++) {
-			long startTime = System.currentTimeMillis();
-			int topicCount = 0;
-			for ( TrecTopic topic : topics ) {
-				topicCount ++;
+			topicIdx = 0;
+			double startTime = System.currentTimeMillis();
+			for (TrecTopic topic : topics) {
+				queryCount ++;
 				Query query = p.parse(topic.getQuery());
 			    Filter filter = NumericRangeFilter.newLongRange(StatusField.ID.name, 0L, topic.getQueryTweetTime(), true, true);
 
+			    // TopDocs rs = searcher.search(query[topicIdx], filter[topicIdx ++], numResults);
 			    TopDocs rs = searcher.search(query, filter, numResults);
 
-//			    int i = 1;
-//			    for (ScoreDoc scoreDoc : rs.scoreDocs) {
-//			        Document hit = searcher.doc(scoreDoc.doc);
-//			        out.println(String.format("%s Q0 %s %d %f %s", topic.getId(),
-//			            hit.getField(StatusField.ID.name).numericValue(), i, scoreDoc.score, runtag));
-//			        if ( verbose) {
-//			        	out.println("# " + hit.toString().replaceAll("[\\n\\r]+", " "));
-//			        }
-//			        i++;
-//			    }
+			    int i = 1;
+			    for (ScoreDoc scoreDoc : rs.scoreDocs) {
+			        Document hit = searcher.doc(scoreDoc.doc);
+			        // out.println(String.format("%s Q0 %s %d %f %s", topic.getId(),
+			        //     hit.getField(StatusField.ID.name).numericValue(), i, scoreDoc.score, runtag));
+			        // if ( verbose) {
+			        // 	out.println("# " + hit.toString().replaceAll("[\\n\\r]+", " "));
+			        // }
+			        i ++;
+			    }
 			}
-			long endTime = System.currentTimeMillis();
-			
+			double endTime = System.currentTimeMillis();
+			// out.println("totalTime time = " + (endTime - startTime) + " ms");
+      		// out.println("time per query = " + (endTime - startTime) / 49 + " ms");
+      		// out.println("throughput = " + 49 / ((double)(endTime - startTime) / 1000) + " qps");
+			out.println("time = " + (endTime - startTime) / (queryCount / count) + " ms");
 			if (count != 1) {
-				total += endTime - startTime;
+				totalTime += endTime - startTime;
 			}
-			totalTopicCount += topicCount;
 		}
-		out.println("total time = " + (total / (N - 1)) + " ms");
-	    out.println("throughput = " + totalTopicCount / N * 1000.0 / (total / (N - 1)) + " qps");
-		reader.close();
+		out.println("time per query = " + totalTime / (N - 1) / (queryCount / N) + " ms");
+    	// out.println("throughput = " + (queryCount / N) / ( totalTime / (N - 1) / 1000) + " qps");
+    	// out.println(totalTime / (N - 1) / (queryCount / N));
+    	reader.close();
+    	out.close();
 	}
 }

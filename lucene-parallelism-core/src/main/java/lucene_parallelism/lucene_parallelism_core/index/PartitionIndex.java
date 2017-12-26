@@ -1,5 +1,5 @@
 /* Divide collection into equal size and build index on each of them
- * Usage: sh target/appassembler/bin/PartitionIndex -collection [] -index [] -parts []
+ * Usage: sh target/appassembler/bin/PartitionIndex -collection [] -index [] {-ratio [] -parts []} -optimize
  */
 
 package lucene_parallelism.lucene_parallelism_core.index;
@@ -47,10 +47,10 @@ import cc.twittertools.index.TweetAnalyzer;
  */
 public class PartitionIndex {
 	private static final Logger LOG = Logger.getLogger(PartitionIndex.class);
-
 	public static final Analyzer ANALYZER = new TweetAnalyzer(Version.LUCENE_43);
+	
 	public static String corpusFormat = null;
-	private static final int NUM_DOCS = 16141812;
+	private static final int NUM_DOCS = 259057030; //16141812;
 
 	private PartitionIndex() {}
 
@@ -83,6 +83,7 @@ public class PartitionIndex {
 	private static final String DELETES_OPTION = "deletes";
 	private static final String OPTIMIZE_OPTION = "optimize";
 	private static final String STORE_TERM_VECTORS_OPTION = "store";
+	private static final String RATIO_OPTION = "ratio";
 	private static final String PARTS_OPTION = "parts";
 
 	@SuppressWarnings("static-access")
@@ -101,6 +102,8 @@ public class PartitionIndex {
 				.withDescription("file with deleted tweetids").create(DELETES_OPTION));
 		options.addOption(OptionBuilder.withArgName("id").hasArg()
 				.withDescription("max id").create(MAX_ID_OPTION));
+		options.addOption(OptionBuilder.withArgName("arg").hasArg()
+				.withDescription("ratio").create(RATIO_OPTION));
 		options.addOption(OptionBuilder.withArgName("arg").hasArg()
 				.withDescription("partition numbers").create(PARTS_OPTION));
 
@@ -169,8 +172,10 @@ public class PartitionIndex {
 			LOG.info("index: " + maxId);
 		}
 		
-		int parts = cmdline.hasOption(PARTS_OPTION) ? Integer.parseInt(cmdline.getOptionValue(PARTS_OPTION)) : 1;
-		int size = (int) Math.ceil((float)(NUM_DOCS) / parts);
+		float ratio = cmdline.hasOption(RATIO_OPTION) ? Float.parseFloat(cmdline.getOptionValue(RATIO_OPTION)) : 1;
+		int numDocs = (int)(NUM_DOCS * ratio);
+//		int parts = cmdline.hasOption(PARTS_OPTION) ? Integer.parseInt(cmdline.getOptionValue(PARTS_OPTION)) : 1;
+//		int size = (int) Math.ceil((float)(NUM_DOCS) / parts);
 		
 		long startTime = System.currentTimeMillis();
 		File file = new File(collectionPath);
@@ -180,15 +185,58 @@ public class PartitionIndex {
 		}
 		
 		StatusStream stream = new JsonStatusCorpusReader(file);
-
-		int partCount = 1;
-		Directory dir = FSDirectory.open(new File(indexPath + "/part" + (partCount ++)));
-		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_43, PartitionIndex.ANALYZER);
-		config.setOpenMode(OpenMode.CREATE);
-
-		IndexWriter writer = new IndexWriter(dir, config);
 		int cnt = 0;
 		Status status;
+//		try {
+//			while ((status = stream.next()) != null) {
+//				if (status.getText() == null) {
+//					continue;
+//				}
+//
+//				// Skip deletes tweetids.
+//				if (deletes != null && deletes.contains(status.getId())) {
+//					continue;
+//				}
+//
+//				if (status.getId() > maxId) {
+//					continue;
+//				}
+//				cnt ++;
+//				if (cnt % 1000000 == 0) {
+//					LOG.info(cnt + " statuses indexed");
+//				}
+//			}
+//			LOG.info(String.format("Total of %s statuses added", cnt));
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		} finally {
+//			stream.close();
+//		}
+//		int NUM_DOCS = cnt;
+//
+//		int partCount = 1;
+//		Directory dir = FSDirectory.open(new File(indexPath + "/part" + (partCount ++)));
+		int[] partsArr = {1, 2, 4, 8, 12, 16, 24, 32, 40, 48, 64, 80, 128};
+		int[] size = new int[partsArr.length];
+		for (int i = 0; i < partsArr.length; i ++) {
+			size[i] = (int)Math.ceil(numDocs * 1.0 / partsArr[i]);
+		}
+//		int[] size = {129528515, 64764258, 32382129, 21588086, 16191065, 10794043, 8095533, 6476426, 5397022, 4047767, 3238213, 2023884}; //new int[partsArr.length];
+		String[] indexPathArr = new String[partsArr.length];
+		int[] partCountArr = new int[partsArr.length];
+		Directory[] dir = new Directory[partsArr.length];
+		IndexWriter[] writer = new IndexWriter[partCountArr.length];
+		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_43, PartitionIndex.ANALYZER);
+		config.setOpenMode(OpenMode.CREATE);
+		for (int i = 0; i < partsArr.length; i ++) {
+//			size[i] = (int) Math.ceil((double)(NUM_DOCS) / partsArr[i]);
+			indexPathArr[i] = indexPath + "-" + partsArr[i] + "parts";
+			partCountArr[i] = 1;
+			dir[i] = FSDirectory.open(new File(indexPathArr[i] + "/part" + (partCountArr[i] ++)));
+			writer[i] = new IndexWriter(dir[i], config);
+		}
+	
+		cnt = 0;
 		try {
 			while ((status = stream.next()) != null) {
 				if (status.getText() == null) {
@@ -204,13 +252,15 @@ public class PartitionIndex {
 					continue;
 				}
 
-				if (cnt % size == 0 && cnt != 0) {
-					writer.close();
-					dir.close();
-					dir = FSDirectory.open(new File(indexPath + "/part" + (partCount ++)));
-					writer = new IndexWriter(dir, config);
+				for (int i = 0; i < partsArr.length; i ++) {
+					if (cnt % size[i] == 0 && cnt != 0) {
+						writer[i].close();
+						dir[i].close();
+						dir[i] = FSDirectory.open(new File(indexPathArr[i] + "/part" + (partCountArr[i] ++)));
+						writer[i] = new IndexWriter(dir[i], config);
+					}
 				}
-				cnt++;
+				cnt ++;
 				Document doc = new Document();
 				doc.add(new LongField(StatusField.ID.name, status.getId(), Field.Store.YES));
 				doc.add(new LongField(StatusField.EPOCH.name, status.getEpoch(), Field.Store.YES));
@@ -243,17 +293,22 @@ public class PartitionIndex {
 					}
 				}
 
-				writer.addDocument(doc);
-				if (cnt % 1000000 == 0) {
+				for (int i = 0; i < partCountArr.length; i ++) {
+					writer[i].addDocument(doc);
+				}
+				if (cnt % 100000 == 0) {
 					LOG.info(cnt + " statuses indexed");
 				}
+				if (cnt == numDocs) break;
 			}
 
 			LOG.info(String.format("Total of %s statuses added", cnt));
 
 			if (cmdline.hasOption(OPTIMIZE_OPTION)) {
 				LOG.info("Merging segments...");
-				writer.forceMerge(1);
+				for (int i = 0; i < partCountArr.length; i ++) {
+					writer[i].forceMerge(1);
+				}
 				LOG.info("Done!");
 			}
 
@@ -261,8 +316,10 @@ public class PartitionIndex {
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			writer.close();
-			dir.close();
+			for (int i = 0; i < partsArr.length; i ++) {
+				writer[i].close();
+				dir[i].close();
+			}
 			stream.close();
 		}
 	}

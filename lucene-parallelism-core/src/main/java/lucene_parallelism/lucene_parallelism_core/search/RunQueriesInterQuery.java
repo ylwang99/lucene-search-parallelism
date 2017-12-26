@@ -41,7 +41,7 @@ import cc.twittertools.search.TrecTopic;
 import cc.twittertools.search.TrecTopicSet;
 
 public class RunQueriesInterQuery {
-	private static final String DEFAULT_RUNTAG = "lucene4lm-multithread";
+	private static final String DEFAULT_RUNTAG = "lucene4lm_multithread_interquery";
 
 	private static final String INDEX_OPTION = "index";
 	private static final String QUERIES_OPTION = "queries";
@@ -58,10 +58,10 @@ public class RunQueriesInterQuery {
 
 		options.addOption(OptionBuilder.withArgName("path").hasArg()
 				.withDescription("index location").create(INDEX_OPTION));
-		options.addOption(OptionBuilder.withArgName("num").hasArg()
-				.withDescription("number of results to return").create(NUM_RESULTS_OPTION));
 		options.addOption(OptionBuilder.withArgName("file").hasArg()
 				.withDescription("file containing topics in TREC format").create(QUERIES_OPTION));
+		options.addOption(OptionBuilder.withArgName("num").hasArg()
+				.withDescription("number of results to return").create(NUM_RESULTS_OPTION));
 		options.addOption(OptionBuilder.withArgName("similarity").hasArg()
 				.withDescription("similarity to use (BM25, LM)").create(SIMILARITY_OPTION));
 		options.addOption(OptionBuilder.withArgName("string").hasArg()
@@ -108,7 +108,11 @@ public class RunQueriesInterQuery {
 		if (cmdline.hasOption(SIMILARITY_OPTION)) {
 			similarity = cmdline.getOptionValue(SIMILARITY_OPTION);
 		}
-		
+
+		PrintStream out = new PrintStream(System.out, true, "UTF-8");
+
+		int nThreads = cmdline.hasOption(NTHREADS_OPTION) ? Integer.parseInt(cmdline.getOptionValue(NTHREADS_OPTION)) : 1;
+		out.println("Number of threads: " + nThreads);
 		IndexReader reader = DirectoryReader.open(FSDirectory.open(indexLocation));
 		IndexSearcher searcher = new IndexSearcher(reader);
 		
@@ -117,38 +121,52 @@ public class RunQueriesInterQuery {
 		} else if (similarity.equalsIgnoreCase("LM")) {
 			searcher.setSimilarity(new LMDirichletSimilarity(2500.0f));
 		}
-		
-		int nThreads = cmdline.hasOption(NTHREADS_OPTION) ? Integer.parseInt(cmdline.getOptionValue(NTHREADS_OPTION)) : 1;
+
+		QueryParser p = new QueryParser(Version.LUCENE_43, StatusField.TEXT.name, IndexStatuses.ANALYZER);
+		TrecTopicSet topics = TrecTopicSet.fromFile(new File(topicsFile));
 
 		int N = 4;
-		int total = 0;
-		int totalTopicCount = 0;
-		TrecTopicSet topics = TrecTopicSet.fromFile(new File(topicsFile));
-		QueryParser p = new QueryParser(Version.LUCENE_43, StatusField.TEXT.name, IndexStatuses.ANALYZER);
-		PrintStream out = new PrintStream(System.out, true, "UTF-8");
+		double totalTime = 0;
+		int queryCount = 0;
+		int topicIdx = 0;
+		for (TrecTopic topic : topics) {
+			topicIdx ++;
+		}
+		Query[] query = new Query[topicIdx];
+		Filter[] filter = new Filter[topicIdx];
+		topicIdx = 0;
+		for (TrecTopic topic : topics) {
+			query[topicIdx] = p.parse(topic.getQuery());
+			filter[topicIdx] = NumericRangeFilter.newLongRange(StatusField.ID.name, 0L, topic.getQueryTweetTime(), true, true);
+			topicIdx ++;
+		}
 		for (int count = 1; count <= N; count ++) {
-			long startTime = System.currentTimeMillis();
+			topicIdx = 0;
 			ExecutorService executor = Executors.newFixedThreadPool(nThreads);
-			int topicCount = 0;
-			for ( TrecTopic topic : topics ) {
-				topicCount ++;
-				Query query = p.parse(topic.getQuery());
-				Filter filter = NumericRangeFilter.newLongRange(StatusField.ID.name, 0L, topic.getQueryTweetTime(), true, true);
-				Runnable worker = new SearchRunnableInterQuery(searcher, topic, query, topicCount, filter, numResults, runtag);
+			
+			double startTime = System.currentTimeMillis();
+			for (TrecTopic topic : topics) {
+				queryCount ++;
+				// Query query = p.parse(topic.getQuery());
+				// Filter filter = NumericRangeFilter.newLongRange(StatusField.ID.name, 0L, topic.getQueryTweetTime(), true, true);
+				
+				// Runnable worker = new SearchRunnableInterQuery(searcher, topic, query, filter, numResults, runtag);
+				Runnable worker = new SearchRunnableInterQuery(searcher, topic, query[topicIdx], filter[topicIdx ++], numResults, runtag);
 				executor.execute(worker);
 			}
 			executor.shutdown();
 			while (!executor.isTerminated());
-			long endTime = System.currentTimeMillis();
-			
+
+			double endTime = System.currentTimeMillis();
 			if (count != 1) {
-				total += endTime - startTime;
+				totalTime += endTime - startTime;
+				out.println("Time = " + (endTime - startTime) / (queryCount / count) + " ms");
 			}
-			totalTopicCount += topicCount;
 		}
-		out.println("total time = " + (total / (N - 1)) + " ms");
-	    out.println("throughput = " + totalTopicCount / N * 1000.0 / (total / (N - 1)) + " qps");
+		// out.println("total time = " + (totalTime / (N - 1)) + " ms");
+	 	out.println("Throughput = " + queryCount / N * 1000.0 / (totalTime / (N - 1)) + " qps");
 		reader.close();
+		out.close();
 	}
 
 	public static List<String> parse(Analyzer analyzer, String s) throws IOException {

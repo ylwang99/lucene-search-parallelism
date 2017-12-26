@@ -16,16 +16,14 @@ public class SearchRunnableInterQuery implements Runnable{
 	IndexSearcher searcher;
 	TrecTopic topic;
 	Query query;
-	int topicCount;
 	Filter filter;
 	int numResults;
 	String runtag;
 	
-	SearchRunnableInterQuery(IndexSearcher searcher, TrecTopic topic, Query query, int topicCount, Filter filter, int numResults, String runtag) {
+	SearchRunnableInterQuery(IndexSearcher searcher, TrecTopic topic, Query query, Filter filter, int numResults, String runtag) {
 		this.searcher = searcher;
 		this.topic = topic;
 		this.query = query;
-		this.topicCount = topicCount;
 		this.filter = filter;
 		this.numResults = numResults;
 		this.runtag = runtag;
@@ -36,8 +34,8 @@ public class SearchRunnableInterQuery implements Runnable{
 			int i = 1;
 			for (ScoreDoc scoreDoc : rs.scoreDocs) {
 				Document hit = searcher.doc(scoreDoc.doc);
-				 System.out.println(String.format("%s Q0 %s %d %f %s", topic.getId(), hit.getField(StatusField.ID.name).numericValue(), i, scoreDoc.score, runtag));
-				i++;
+				// System.out.println(String.format("%s Q0 %s %d %f %s", topic.getId(), hit.getField(StatusField.ID.name).numericValue(), i, scoreDoc.score, runtag));
+				i ++;
 			}
 		} catch(IOException e) {}
 	}

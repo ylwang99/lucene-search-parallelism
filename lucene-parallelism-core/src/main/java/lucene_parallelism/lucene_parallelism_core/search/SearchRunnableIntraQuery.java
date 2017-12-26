@@ -14,15 +14,13 @@ import cc.twittertools.search.TrecTopic;
 
 public class SearchRunnableIntraQuery implements Runnable{
 	IndexSearcher searcher;
-	TrecTopic topic;
 	Query query;
 	Filter filter;
 	int numResults;
 	TopNFast topN;
 	
-	SearchRunnableIntraQuery(IndexSearcher searcher, TrecTopic topic, Query query, Filter filter, int numResults, TopNFast topN) {
+	SearchRunnableIntraQuery(IndexSearcher searcher, Query query, Filter filter, int numResults, TopNFast topN) {
 		this.searcher = searcher;
-		this.topic = topic;
 		this.query = query;
 		this.filter = filter;
 		this.numResults = numResults;

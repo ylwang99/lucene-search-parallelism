@@ -38,7 +38,7 @@
           <programs>
           	<program>
               <mainClass>lucene_parallelism.lucene_parallelism_core.index.IndexStatuses</mainClass>
-              <name>PartitionIndex.java</name>
+              <name>IndexStatuses</name>
               <jvmSettings>
                 <maxMemorySize>128g</maxMemorySize>
               </jvmSettings>
@@ -47,7 +47,7 @@
               <mainClass>lucene_parallelism.lucene_parallelism_core.index.PartitionIndex</mainClass>
               <name>PartitionIndex</name>
               <jvmSettings>
-                <maxMemorySize>128g</maxMemorySize>
+                <maxMemorySize>512g</maxMemorySize>
               </jvmSettings>
             </program>
             <program>
